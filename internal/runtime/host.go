@@ -29,8 +29,9 @@ type Mount struct {
 
 // Host owns one selected compiled profile for a process lifetime.
 type Host struct {
-	profile Profile
-	mount   Mount
+	profile  Profile
+	profiles []Profile
+	mount    Mount
 
 	mu       sync.RWMutex
 	state    State
@@ -56,6 +57,46 @@ func Open(registry *Registry, profileID string, mount Mount) (*Host, error) {
 		return nil, fmt.Errorf("Arkade Runtime shutdown required")
 	}
 	return &Host{profile: profile, mount: mount, state: StateOpen}, nil
+}
+
+// OpenProfiles hosts a fixed set of compiled products on one application,
+// retaining one ledger owner, readiness check and shutdown operation.
+func OpenProfiles(registry *Registry, profileIDs []string, mount Mount) (*Host, error) {
+	if len(profileIDs) == 0 {
+		return nil, fmt.Errorf("compiled profile selection required")
+	}
+	host, err := Open(registry, profileIDs[0], mount)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	for _, id := range profileIDs {
+		if seen[id] {
+			return nil, fmt.Errorf("duplicate selected profile %q", id)
+		}
+		profile, ok := registry.Profile(id)
+		if !ok {
+			return nil, fmt.Errorf("Arkade Runtime profile %q is not compiled", id)
+		}
+		seen[id] = true
+		host.profiles = append(host.profiles, profile)
+	}
+	return host, nil
+}
+
+func (h *Host) Profiles() []Profile {
+	if h == nil {
+		return nil
+	}
+	profiles := h.profiles
+	if len(profiles) == 0 {
+		profiles = []Profile{h.profile}
+	}
+	out := make([]Profile, len(profiles))
+	for i, p := range profiles {
+		out[i] = Profile{definition: cloneDefinition(p.definition)}
+	}
+	return out
 }
 
 // Handler returns the exact mounted application handler while the host is

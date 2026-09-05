@@ -224,11 +224,17 @@ func TestVerifyPhonePendingProofRejectsMessageLeafAndSignatureMutations(t *testi
 
 func TestAuthorizeVtxoSpendLostResponseReturnsIdenticalPendingProof(t *testing.T) {
 	e, resolver, operator := vtxoTestEnv(t)
-	tree, err := e.svc.buildVtxoPolicyTree(fixture.VaultID, e.svc.snapshot(fixture.VaultID))
+	assertVtxoSpendLostResponse(t, e, resolver, operator.PubKey(), fixture.VaultID)
+}
+
+func assertVtxoSpendLostResponse(t *testing.T, e *env, resolver *stubArkResolver, operator *btcec.PublicKey, vaultID string) {
+	t.Helper()
+
+	tree, err := e.svc.buildVtxoPolicyTree(vaultID, e.svc.snapshot(vaultID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	unroll := &arkscript.MultisigClosure{PubKeys: []*btcec.PublicKey{operator.PubKey()}}
+	unroll := &arkscript.MultisigClosure{PubKeys: []*btcec.PublicKey{operator}}
 	resolver.checkpoint, err = unroll.Script()
 	if err != nil {
 		t.Fatal(err)
@@ -237,8 +243,8 @@ func TestAuthorizeVtxoSpendLostResponseReturnsIdenticalPendingProof(t *testing.T
 		Txid: strings.Repeat("31", 32), Vout: 4, ValueSats: 20_000, Script: bytes.Clone(tree.PkScript),
 	}}
 	reserve, err := e.svc.ReserveVtxo(context.Background(), signedReserveRequest(t, e, VtxoReserveRequest{
-		OperationID: strings.Repeat("32", 16), VaultID: fixture.VaultID,
-		Purpose: policy.VtxoPurposeSpend, DestAddress: mustArkadeDest(t, operator), AmountSats: 10_000,
+		OperationID: strings.Repeat("32", 16), VaultID: vaultID,
+		Purpose: policy.VtxoPurposeSpend, DestAddress: mustArkadeDestForPub(t, operator), AmountSats: 10_000,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -313,7 +319,7 @@ func TestAuthorizeVtxoSpendLostResponseReturnsIdenticalPendingProof(t *testing.T
 		t.Fatal(err)
 	}
 	req := VtxoAuthorizeRequest{
-		VaultID: fixture.VaultID, OperationID: op.OperationID,
+		VaultID: vaultID, OperationID: op.OperationID,
 		BundleDigest: hex.EncodeToString(op.BundleDigest), UnsignedArkPsbt: arkRaw,
 		UnsignedCheckpointPsbts: []string{checkpointRaw}, PendingProof: pendingRaw,
 		CredentialID: hex.EncodeToString(e.credID), ClientDataJSON: hex.EncodeToString(assertion.ClientDataJSON),
@@ -356,7 +362,7 @@ func TestAuthorizeVtxoSpendLostResponseReturnsIdenticalPendingProof(t *testing.T
 	if !bytes.Equal(stored.PendingProofDigest, wantDigest) || stored.AuthorizedPendingProof != first.AuthorizedPendingProof {
 		t.Fatal("pending recovery proof was not durably bound before response")
 	}
-	view, err := e.svc.GetVtxoOperationView(context.Background(), fixture.VaultID, op.OperationID)
+	view, err := e.svc.GetVtxoOperationView(context.Background(), vaultID, op.OperationID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/brg444/arkade-runtime/internal/policy"
 	"github.com/brg444/arkade-runtime/internal/program"
+	"github.com/brg444/arkade-runtime/internal/vault/light"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/txscript"
@@ -56,6 +57,7 @@ type KeyCapabilities struct {
 	vtxoTransaction vtxoTransactionAuthorizer
 	vtxoCheckpoint  vtxoCheckpointAuthorizer
 	vaultBoard      vaultBoardAuthorizer
+	lightRenewal    lightRenewalAuthorizer
 	publicEmulator  publicEmulatorOperation
 	lifecycle       keyLifecycle
 }
@@ -72,6 +74,8 @@ func (k KeyCapabilities) Validate() error {
 		return fmt.Errorf("arkade-vault-v1 VTXO checkpoint authorization required")
 	case isNilInterface(k.vaultBoard):
 		return fmt.Errorf("vault-board-v1 authorization required")
+	case isNilInterface(k.lightRenewal):
+		return fmt.Errorf("Light renewal authorization required")
 	case isNilInterface(k.publicEmulator):
 		return fmt.Errorf("arkade-vault-v1 public Emulator operation required")
 	case isNilInterface(k.lifecycle):
@@ -167,7 +171,7 @@ func NewFileBackedKeyCapabilities(master *btcec.PrivateKey, emulator Signer) (Ke
 	capabilities := KeyCapabilities{
 		enrollment: keys, savingsRecovery: savings,
 		vtxoTransaction: keys, vtxoCheckpoint: keys,
-		vaultBoard: keys, publicEmulator: public, lifecycle: keys,
+		vaultBoard: keys, lightRenewal: keys, publicEmulator: public, lifecycle: keys,
 	}
 	if err := capabilities.Validate(); err != nil {
 		return KeyCapabilities{}, err
@@ -310,6 +314,7 @@ func (p *pinnedPublicEmulatorOperation) authorizeSavingsRecoveryStage(
 }
 
 type vtxoKeyContext struct {
+	lightProfile  bool
 	vaultID       string
 	network       string
 	operatorPub   []byte
@@ -445,7 +450,11 @@ func deriveVtxoKey(master *btcec.PrivateKey, req vtxoKeyContext) (*btcec.Private
 	if master == nil || validateVtxoKeyContext(req, false) != nil {
 		return nil, fmt.Errorf("vault-policy-v1 key context required")
 	}
-	return policy.DeriveVtxoVaultCosignerScalar(master, req.vaultID, program.VaultPolicyV1, req.network, req.operatorPub)
+	namedProgram := program.VaultPolicyV1
+	if req.lightProfile {
+		namedProgram = light.Program
+	}
+	return policy.DeriveVtxoVaultCosignerScalar(master, req.vaultID, namedProgram, req.network, req.operatorPub)
 }
 
 func validateVtxoKeyContext(req vtxoKeyContext, requireExpected bool) error {

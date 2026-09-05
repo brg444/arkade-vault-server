@@ -1,0 +1,62 @@
+[
+  {
+    "descriptor": {
+      "schema": "vaulted-light/descriptor-v1",
+      "profile": "vaulted-light-v1",
+      "program": "vault-light-policy-v1",
+      "vaultId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "network": "mutinynet",
+      "ownerPub": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "cosignerPub": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "operatorPub": "301078808e4f7bc0dadfe29e34b1df8eaf0108ef06b1722274075ebc107a127a",
+      "exitDelaySeconds": 4608,
+      "spendingPolicy": {
+        "program": "vault-light-policy-v1",
+        "schema": "vault-light-spending-policy-v1",
+        "period": "rolling-24h",
+        "periodAllowanceSats": 100000,
+        "txRecipientCapSats": 50000,
+        "absoluteFeeCapSats": 5000,
+        "feerateCapSatPerV": 10
+      },
+      "spendingPolicyDigest": "64a750cf39d7f0c5d7fba135c5f71d9ca2e6b4a0f4586ee43058e9bed9a87c1c",
+      "scriptPubKey": "5120c89baee92618e0c6bfe529914928b6d9c6965630c7be8a75c82797c734f85ef0"
+    },
+    "descriptorDigest": "a7df0197be99cdb542144647da1d0bf682dd6c4e2e3c6439da70512cb21a07e7",
+    "exitControlBlock": "c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0362d7c05fa6b278cf95de576632239631cb1164fe3b4b18a3a6e4a892aa2b659",
+    "exitScript": "03090040b2752079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ac",
+    "spendControlBlock": "c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0db6832265599f2091427b86ef33625337b54ceb2eab7b1f94ed604beefbbcd47",
+    "spendScript": "2079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad20c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ad20301078808e4f7bc0dadfe29e34b1df8eaf0108ef06b1722274075ebc107a127aac",
+    "tapKey": "c89baee92618e0c6bfe529914928b6d9c6965630c7be8a75c82797c734f85ef0"
+  },
+  {
+    "descriptor": {
+      "schema": "vaulted-light/descriptor-v1",
+      "profile": "vaulted-light-v1",
+      "program": "vault-light-policy-v1",
+      "vaultId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "network": "mainnet",
+      "ownerPub": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "cosignerPub": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "operatorPub": "8202bebddeb1f7442803897a85eaf3ce9254d07df0172fc3725ab5f0d097779c",
+      "exitDelaySeconds": 605184,
+      "spendingPolicy": {
+        "program": "vault-light-policy-v1",
+        "schema": "vault-light-spending-policy-v1",
+        "period": "rolling-24h",
+        "periodAllowanceSats": 100000,
+        "txRecipientCapSats": 50000,
+        "absoluteFeeCapSats": 20000,
+        "feerateCapSatPerV": 25
+      },
+      "spendingPolicyDigest": "11a2d9377227fbe683ac1b62eba09efbea28672c18c3f334881e3b3b68f76a70",
+      "scriptPubKey": "51202b4c375770a77863e7bf83f48a5c2d3fb2618dc458a011b8b3702159d975915a"
+    },
+    "descriptorDigest": "82d4ed62fb4cf0fdd3df48ae831cd864496d37b817967bff40355bbc4ead1de6",
+    "exitControlBlock": "c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac04a116bc6ce0967d3cb7753f10411d64a1c5920d1cb90e55e2077f87670eb28f4",
+    "exitScript": "039e0440b2752079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ac",
+    "spendControlBlock": "c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac03a48c3fde09a807eac10b08359511004e670d46865b990aaac35b89b8532c698",
+    "spendScript": "2079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad20c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ad208202bebddeb1f7442803897a85eaf3ce9254d07df0172fc3725ab5f0d097779cac",
+    "tapKey": "2b4c375770a77863e7bf83f48a5c2d3fb2618dc458a011b8b3702159d975915a"
+  }
+]

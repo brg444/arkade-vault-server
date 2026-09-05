@@ -22,7 +22,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	lightEnabledDefault, err := parseLightEnabled(os.Getenv("VAULT_LIGHT_ENABLED"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	var (
+		lightEnabled        = flag.Bool("light-enabled", lightEnabledDefault, "allow new Light wallet enrollment after lifecycle qualification")
 		inviteOnly          = flag.Bool("invite-only", inviteOnlyDefault, "require operator-issued invitations for new enrollment")
 		addr                = flag.String("addr", envOr("VAULT_AUTHORIZER_ADDR", "127.0.0.1:8788"), "internal authorizer listen address")
 		dbPath              = flag.String("db", os.Getenv("VAULT_DB_PATH"), "absolute authoritative SQLite path")
@@ -46,6 +51,7 @@ func main() {
 		VaultCosignerKeyFile: *keyFile,
 		EnrollmentTokenFile:  *tokenFile,
 		OpenEnrollment:       !*inviteOnly,
+		LightEnabled:         *lightEnabled,
 		StorageIsolation:     *storageIsolation,
 		EdgeRateLimit:        *edgeRateLimit,
 		MainnetAcknowledged:  *mainnetAcknowledged,
@@ -108,4 +114,15 @@ func parseInviteOnly(value string) (bool, error) {
 		return true, fmt.Errorf("VAULT_INVITE_ONLY must be true or false")
 	}
 	return enabled, nil
+}
+
+func parseLightEnabled(value string) (bool, error) {
+	switch value {
+	case "", "false":
+		return false, nil
+	case "true":
+		return true, nil
+	default:
+		return false, fmt.Errorf("VAULT_LIGHT_ENABLED must be true or false")
+	}
 }

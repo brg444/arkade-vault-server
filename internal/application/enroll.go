@@ -231,46 +231,8 @@ func (s *Service) FinishEnrollment(ctx context.Context, token string, req Enroll
 	if pending.ExpiresAt != "" && pending.ExpiresAt < now.Format(time.RFC3339) {
 		return nil, fmt.Errorf("pending enrollment expired")
 	}
-	cfg := s.runtimeConfig()
-	clientData, err := decodeHex(req.ClientDataJSON)
-	if err != nil {
-		return nil, fmt.Errorf("clientDataJSON: %w", err)
-	}
-	authData, err := decodeHex(req.AuthenticatorData)
-	if err != nil {
-		return nil, fmt.Errorf("authenticatorData: %w", err)
-	}
-	if req.AttestationObject != "" {
-		obj, err := decodeHex(req.AttestationObject)
-		if err != nil {
-			return nil, fmt.Errorf("attestationObject: %w", err)
-		}
-		fromObj, err := webauthn.ParseAttestationObject(obj)
-		if err != nil {
-			return nil, fmt.Errorf("attestationObject: %w", err)
-		}
-		if !bytesEqualConst(fromObj, authData) {
-			return nil, fmt.Errorf("attestationObject authData mismatch")
-		}
-	}
-	created, err := webauthn.ValidateCreate(clientData, authData, pending.Challenge, cfg.ClientOrigin, cfg.RPID)
-	if err != nil {
-		return nil, fmt.Errorf("webauthn create: %w", err)
-	}
-	userHandle, err := decodeHex(req.UserHandle)
-	if err != nil {
-		return nil, fmt.Errorf("userHandle: %w", err)
-	}
-	if !bytesEqualConst([]byte(pending.VaultID), userHandle) {
-		return nil, fmt.Errorf("userHandle does not match assigned vault")
-	}
-	postedID, err := decodeHex(req.CredentialID)
-	if err != nil || !bytesEqualConst(created.CredentialID, postedID) {
-		return nil, fmt.Errorf("credential id does not match authenticator")
-	}
-	postedP256, err := decodeHex(req.WebAuthnP256)
-	if err != nil || !bytesEqualConst(created.WebAuthnP256, postedP256) {
-		return nil, fmt.Errorf("webauthn p256 does not match authenticator")
+	if err := s.validateEnrollmentCreate(pending, req); err != nil {
+		return nil, err
 	}
 	if req.ExternalOwnerWalletXOnly == "" {
 		return nil, fmt.Errorf("tenant owner pub required")
@@ -290,6 +252,53 @@ func (s *Service) FinishEnrollment(ctx context.Context, token string, req Enroll
 		return nil, err
 	}
 	return &st, nil
+}
+
+// validateEnrollmentCreate verifies the same attested passkey ceremony for each
+// explicitly named enrollment profile. Profile keys and policy are checked separately.
+func (s *Service) validateEnrollmentCreate(pending *policy.PendingEnrollment, req EnrollFinishRequest) error {
+	cfg := s.runtimeConfig()
+	clientData, err := decodeHex(req.ClientDataJSON)
+	if err != nil {
+		return fmt.Errorf("clientDataJSON: %w", err)
+	}
+	authData, err := decodeHex(req.AuthenticatorData)
+	if err != nil {
+		return fmt.Errorf("authenticatorData: %w", err)
+	}
+	if req.AttestationObject != "" {
+		obj, err := decodeHex(req.AttestationObject)
+		if err != nil {
+			return fmt.Errorf("attestationObject: %w", err)
+		}
+		fromObj, err := webauthn.ParseAttestationObject(obj)
+		if err != nil {
+			return fmt.Errorf("attestationObject: %w", err)
+		}
+		if !bytesEqualConst(fromObj, authData) {
+			return fmt.Errorf("attestationObject authData mismatch")
+		}
+	}
+	created, err := webauthn.ValidateCreate(clientData, authData, pending.Challenge, cfg.ClientOrigin, cfg.RPID)
+	if err != nil {
+		return fmt.Errorf("webauthn create: %w", err)
+	}
+	userHandle, err := decodeHex(req.UserHandle)
+	if err != nil {
+		return fmt.Errorf("userHandle: %w", err)
+	}
+	if !bytesEqualConst([]byte(pending.VaultID), userHandle) {
+		return fmt.Errorf("userHandle does not match assigned vault")
+	}
+	postedID, err := decodeHex(req.CredentialID)
+	if err != nil || !bytesEqualConst(created.CredentialID, postedID) {
+		return fmt.Errorf("credential id does not match authenticator")
+	}
+	postedP256, err := decodeHex(req.WebAuthnP256)
+	if err != nil || !bytesEqualConst(created.WebAuthnP256, postedP256) {
+		return fmt.Errorf("webauthn p256 does not match authenticator")
+	}
+	return nil
 }
 
 func (s *Service) acceptDuplicateFinishFromToken(tokenHash []byte, req EnrollFinishRequest) (*Status, bool) {

@@ -52,10 +52,15 @@ func (s *Service) operatorSignerPub() []byte {
 func (s *Service) vtxoKeyContext(vaultID string) (vtxoKeyContext, error) {
 	operator := s.operatorSignerPub()
 	cfg := s.runtimeConfig()
-	return newVtxoKeyContext(vaultID, cfg.Network, operator)
+	context, err := newVtxoKeyContext(vaultID, cfg.Network, operator)
+	context.lightProfile = s.snapshot(vaultID).Light != nil
+	return context, err
 }
 
 func (s *Service) buildVtxoPolicyTree(vaultID string, snap enrolledSnapshot) (*vtxoPolicyTree, error) {
+	if snap.Light != nil {
+		return s.buildLightPolicyTree(*snap.Light)
+	}
 	if snap.PhoneBIP340 == nil || snap.ExternalOwnerWallet == nil {
 		return nil, fmt.Errorf("enrolled keys required")
 	}

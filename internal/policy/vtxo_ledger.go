@@ -143,6 +143,9 @@ func (l *Ledger) ReserveVtxoOperation(ctx context.Context, rec VtxoOperation, in
 	if err := l.rejectConcurrentVtxoOperationLocked(ctx, conn, rec.VaultID, rec.OperationID); err != nil {
 		return err
 	}
+	if err := l.rejectActiveLightRenewal(ctx, conn, rec.VaultID); err != nil {
+		return err
+	}
 	usedAmt, err := l.spentInWindow(ctx, conn, rec.VaultID)
 	if err != nil {
 		return err

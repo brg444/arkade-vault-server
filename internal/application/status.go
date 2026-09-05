@@ -9,6 +9,7 @@ import (
 	"github.com/brg444/arkade-runtime/internal/deployment"
 	"github.com/brg444/arkade-runtime/internal/policy"
 	"github.com/brg444/arkade-runtime/internal/program"
+	"github.com/brg444/arkade-runtime/internal/vault/light"
 	"github.com/brg444/arkade-runtime/internal/vault/savings"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -17,6 +18,7 @@ import (
 // PublicStatus is the unauthenticated authorizer identity. It is not a
 // tenant descriptor and must not be treated as enrolled.
 type PublicStatus struct {
+	SupportedSetups            []string                           `json:"supportedSetups"`
 	Network                    string                             `json:"network"`
 	ClientOrigin               string                             `json:"clientOrigin"`
 	RPID                       string                             `json:"rpId"`
@@ -29,6 +31,8 @@ type PublicStatus struct {
 
 // Status is the UI snapshot.
 type Status struct {
+	LightDescriptor           *light.Descriptor      `json:"lightDescriptor,omitempty"`
+	LightDescriptorHash       string                 `json:"lightDescriptorHash,omitempty"`
 	Enrolled                  bool                   `json:"enrolled"`
 	Network                   string                 `json:"network"`
 	ClientOrigin              string                 `json:"clientOrigin"`
@@ -108,12 +112,16 @@ func (s *Service) PublicStatus() (PublicStatus, error) {
 		return PublicStatus{}, err
 	}
 	st := PublicStatus{
+		SupportedSetups:            []string{"standard", "advanced"},
 		Network:                    cfg.Network,
 		ClientOrigin:               cfg.ClientOrigin,
 		RPID:                       cfg.RPID,
 		TemplateVersion:            publicEnrollTemplate(s),
 		PolicyVersion:              program.PolicyVersion,
 		SpendingPolicyCapabilities: caps,
+	}
+	if s.LightEnabled {
+		st.SupportedSetups = append([]string{"light"}, st.SupportedSetups...)
 	}
 	st.EnrollmentMode, st.EnrollmentExpiresAt = s.publicEnrollmentMode()
 	return st, nil
@@ -151,12 +159,29 @@ func (s *Service) statusFor(ctx context.Context, vaultID string) (Status, error)
 		return Status{}, err
 	}
 	selected := spendingPolicyFromCredential(cred)
-	if err := program.ValidateSpendingPolicyFor(cfg.Network, selected); err != nil {
-		return Status{}, fmt.Errorf("stored economic policy: %w", err)
-	}
-	digest, err := program.SpendingPolicyDigestHexFor(cfg.Network, selected)
-	if err != nil {
-		return Status{}, err
+	var digest string
+	var lightDescriptor *light.Descriptor
+	var lightHash string
+	if cred.TemplateVersion == light.Profile {
+		d, e := s.lightDescriptorForCredential(cred)
+		if e != nil {
+			return Status{}, e
+		}
+		lightDescriptor = &d
+		lightHash, err = light.DescriptorDigest(d)
+		if err != nil {
+			return Status{}, err
+		}
+		selected = program.SpendingPolicy(d.SpendingPolicy)
+		digest = d.SpendingPolicyDigest
+	} else {
+		if err := program.ValidateSpendingPolicyFor(cfg.Network, selected); err != nil {
+			return Status{}, fmt.Errorf("stored economic policy: %w", err)
+		}
+		digest, err = program.SpendingPolicyDigestHexFor(cfg.Network, selected)
+		if err != nil {
+			return Status{}, err
+		}
 	}
 	allowance := selected.PeriodAllowanceSats
 	txCap := selected.TxRecipientCapSats
@@ -189,6 +214,10 @@ func (s *Service) statusFor(ctx context.Context, vaultID string) (Status, error)
 		SpendingPolicyDigest: digest,
 	}
 	st.EnrollmentMode = "closed"
+	st.LightDescriptor, st.LightDescriptorHash = lightDescriptor, lightHash
+	if lightDescriptor != nil {
+		st.ProtectionTier = "light"
+	}
 	snap := s.snapshot(vaultID)
 	// Report the persisted descriptor inputs, not merely mutable runtime
 	// fields. LoadVaults/Register already require these to match runtime.
@@ -203,11 +232,13 @@ func (s *Service) statusFor(ctx context.Context, vaultID string) (Status, error)
 	st.ArkadeCosignerBasePub = hex.EncodeToString(cred.ArkadeCosignerBase)
 	st.ArkadeCosignerOrigin = cred.ArkadeCosignerOrigin
 	st.ArkadeCosignerVersion = cred.ArkadeCosignerVersion
-	envelope, envelopeErr := s.loadVerifiedEnvelopeFor(vaultID, cred.ID)
-	if envelopeErr != nil {
-		return Status{}, envelopeErr
+	if lightDescriptor == nil {
+		envelope, envelopeErr := s.loadVerifiedEnvelopeFor(vaultID, cred.ID)
+		if envelopeErr != nil {
+			return Status{}, envelopeErr
+		}
+		st.PasskeyLoginAvailable = envelope != nil
 	}
-	st.PasskeyLoginAvailable = envelope != nil
 	st.Warnings = statusWarnings(cred)
 	if snap.Savings != nil {
 		st.SavingsAddr = snap.Savings.Address
@@ -250,6 +281,12 @@ func (s *Service) fillVtxoStatus(st *Status, vaultID string, snap enrolledSnapsh
 	}
 	st.SpendingArkAddress = tree.ArkAddress
 	st.SpendingArkScript = hex.EncodeToString(tree.PkScript)
+	if snap.Light != nil {
+		st.VtxoBoardingProgram = ""
+		st.VtxoBoardingExitDelay = 0
+		st.VtxoBoardingExitDelayUnit = ""
+		return
+	}
 	if tree.DelegatePub != nil {
 		st.VtxoDelegatePub = hex.EncodeToString(tree.DelegatePub.SerializeCompressed())
 	}

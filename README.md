@@ -171,6 +171,14 @@ without breaking fresh-device recovery and lost-response recovery.
 | `GET /v1/status` | Public service status or one vault's status with `?vault=`. |
 | `GET /v1/invite` | Invitation availability. |
 | `POST /v1/enroll/session` | Issue a ten-minute, single-use setup session when invite-only admission is off. |
+| `POST /v1/light/renew/prepare` | Reserve the fee for renewing one Light output. |
+| `POST /v1/light/renew/register` | Verify owner and passkey approval, then register the exact Light renewal. |
+| `POST /v1/light/renew/final` | Verify signed replacement paths and submit the owner-authorized forfeit. |
+| `POST /v1/light/renew/status` | Reconcile the replacement output and confirmed Bitcoin commitment. |
+| `POST /v1/light/renew/release` | Cancel an unsent renewal or fence an expired registration after checking the old output. |
+| `POST /v1/light/enroll/start` | Assign a Light identity and freeze its spending policy. |
+| `POST /v1/light/enroll/propose` | Return the Light descriptor for local verification and backup. |
+| `POST /v1/light/enroll/finish` | Verify the passkey ceremony and atomically consume admission. |
 | `POST /v1/enroll/start` | Freeze the protection tier and canonical policy digest, reserve a vault ID, and return the create-ceremony challenge. |
 | `POST /v1/enroll/propose` | Return the Savings and `vault-board-v1` descriptors for wallet review. |
 | `POST /v1/enroll/finish` | Verify the complete enrollment and consume the invitation. |
@@ -291,3 +299,9 @@ go test -race ./internal/policy ./internal/application ./internal/authorizer -co
 ```
 
 Report vulnerabilities through [SECURITY.md](SECURITY.md), not a public issue.
+
+## Vaulted Light candidate
+
+The compiled `vaulted-light-v1` profile adds passkey-owned Spending with an immutable per-payment and rolling allowance policy. New Light enrollment is disabled unless `VAULT_LIGHT_ENABLED=true`; this setting is independent of `VAULT_INVITE_ONLY`. Existing Light wallets and already-started ceremonies remain usable when new enrollment is disabled.
+
+Light is not ready for a mainnet activation: bounded renewal authorization and funded lifecycle/recovery qualification remain outstanding. See [the Light contract and integration notes](internal/vault/light/README.md). Existing Standard and Advanced programs and ledger records retain their current behavior.

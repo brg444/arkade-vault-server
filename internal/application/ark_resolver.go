@@ -484,6 +484,7 @@ type indexerVtxo struct {
 	IsSpent         bool            `json:"isSpent"`
 	SpentBy         string          `json:"spentBy"`
 	ArkTxid         string          `json:"arkTxid"`
+	SettledBy       string          `json:"settledBy"`
 }
 
 type indexerPage struct {

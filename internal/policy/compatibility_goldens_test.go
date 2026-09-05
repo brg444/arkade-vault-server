@@ -16,6 +16,14 @@ import (
 // digest catches intentional-looking SQL edits that preserve coarse column
 // types while changing stored bytes, constraints, or object definitions.
 func TestSchemaCompatibilityGolden(t *testing.T) {
+	testSchemaGolden(t, false, "c15fdd355bcf93cc34487f43178f133f95d59c9f501ef4544589eeeb0ed9a553")
+}
+
+func TestLightRenewalSchemaGolden(t *testing.T) {
+	testSchemaGolden(t, true, "a577b1311c302be332af46386f2de45c166aef422f3a2cf7186b2954100c6ee8")
+}
+
+func testSchemaGolden(t *testing.T, renewal bool, want string) {
 	ledger, err := OpenLedger(filepath.Join(t.TempDir(), "vault.sqlite"), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -23,7 +31,11 @@ func TestSchemaCompatibilityGolden(t *testing.T) {
 	defer ledger.Close()
 
 	var canonical bytes.Buffer
-	fmt.Fprintf(&canonical, "schema_meta=%d\n", schemaVersion)
+	version := legacySchemaVersion
+	if renewal {
+		version = schemaVersion
+	}
+	fmt.Fprintf(&canonical, "schema_meta=%d\n", version)
 	rows, err := ledger.db.Query(`
 SELECT type, name, tbl_name, IFNULL(sql, '')
   FROM sqlite_schema
@@ -38,13 +50,16 @@ SELECT type, name, tbl_name, IFNULL(sql, '')
 		if err := rows.Scan(&kind, &name, &table, &sqlText); err != nil {
 			t.Fatal(err)
 		}
+		// The original golden still freezes every legacy object verbatim.
+		if !renewal && (table == "light_renewal_operation" || table == "light_renewal_event") {
+			continue
+		}
 		fmt.Fprintf(&canonical, "%s\x00%s\x00%s\x00%s\n", kind, name, table, sqlText)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(canonical.Bytes())
-	const want = "c15fdd355bcf93cc34487f43178f133f95d59c9f501ef4544589eeeb0ed9a553"
 	if got := hex.EncodeToString(sum[:]); got != want {
 		t.Fatalf("schema digest = %s, want %s\ncanonical schema:\n%s", got, want, canonical.String())
 	}

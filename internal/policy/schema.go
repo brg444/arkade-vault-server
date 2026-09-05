@@ -10,7 +10,8 @@ import (
 	"github.com/brg444/arkade-runtime/internal/program"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
+const legacySchemaVersion = 1
 
 var boardingTables = []string{
 	"vault_board_authorization",
@@ -221,7 +222,7 @@ func OpenLedgerForNetwork(path string, clock Clock, network string) (*Ledger, er
 	return &Ledger{db: db, clock: clock, network: network}, nil
 }
 
-func initializeOrValidateSchema(db *sql.DB, boardSchema string) error {
+func initializeOrValidateLegacySchema(db *sql.DB, boardSchema string) error {
 	tables, err := applicationTables(db)
 	if err != nil {
 		return err
@@ -235,7 +236,7 @@ func initializeOrValidateSchema(db *sql.DB, boardSchema string) error {
 		if _, err := tx.Exec(createMultiTenantSchema + createVtxoSchema + boardSchema); err != nil {
 			return fmt.Errorf("create vault schema: %w", err)
 		}
-		if _, err := tx.Exec(`INSERT INTO schema_meta (version) VALUES (?)`, schemaVersion); err != nil {
+		if _, err := tx.Exec(`INSERT INTO schema_meta (version) VALUES (?)`, legacySchemaVersion); err != nil {
 			return err
 		}
 		if err := tx.Commit(); err != nil {
@@ -248,14 +249,14 @@ func initializeOrValidateSchema(db *sql.DB, boardSchema string) error {
 	if !sameStrings(tables, want) {
 		return fmt.Errorf("database is not the current vault baseline: tables %v", tables)
 	}
-	if err := validateVaultBoardObjects(db); err != nil {
+	if err := validateVaultSchemaObjects(db, false); err != nil {
 		return err
 	}
 	ver, rows, err := schemaMetaState(db)
 	if err != nil {
 		return err
 	}
-	if rows != 1 || ver != schemaVersion {
+	if rows != 1 || ver != legacySchemaVersion {
 		return fmt.Errorf("database is not the current vault baseline: schema version %d", ver)
 	}
 	if err := validateMultiTenantSchemaOn(db); err != nil {
@@ -328,7 +329,7 @@ func matchVaultBoardIndexes(table string, got, want []idxSpec) error {
 	return nil
 }
 
-func validateVaultBoardObjects(db *sql.DB) error {
+func validateVaultSchemaObjects(db *sql.DB, renewal bool) error {
 	want := append([]string(nil), coreTables...)
 	for i, table := range want {
 		want[i] = "table:" + table
@@ -340,6 +341,9 @@ func validateVaultBoardObjects(db *sql.DB) error {
 		"index:vtxo_operation_vault_state_created", "index:vtxo_operation_vault_state_expiry",
 		"index:vault_board_authorization_phase", "index:vault_board_operation_vault",
 	)
+	if renewal {
+		want = append(want, "table:light_renewal_operation", "table:light_renewal_event")
+	}
 	rows, err := db.Query(`SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND type IN ('table','index','trigger','view') AND (type != 'index' OR sql IS NOT NULL) ORDER BY type, name`)
 	if err != nil {
 		return err

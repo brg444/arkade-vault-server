@@ -104,6 +104,9 @@ func mustTaprootDest(t *testing.T) string {
 }
 
 func mustArkadeDest(t *testing.T, operator *btcec.PrivateKey) string {
+	return mustArkadeDestForPub(t, operator.PubKey())
+}
+func mustArkadeDestForPub(t *testing.T, operator *btcec.PublicKey) string {
 	t.Helper()
 	destination, err := btcec.NewPrivateKey()
 	if err != nil {
@@ -111,7 +114,7 @@ func mustArkadeDest(t *testing.T, operator *btcec.PrivateKey) string {
 	}
 	addr, err := (&arklib.Address{
 		Version: 0, HRP: arklib.BitcoinMutinyNet.Addr,
-		Signer: operator.PubKey(), VtxoTapKey: destination.PubKey(),
+		Signer: operator, VtxoTapKey: destination.PubKey(),
 	}).EncodeV0()
 	if err != nil {
 		t.Fatal(err)

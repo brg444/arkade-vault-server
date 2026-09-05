@@ -93,3 +93,38 @@ func TestHostRequiresCompiledProfileAndLifecycle(t *testing.T) {
 		t.Fatal("nil shutdown mounted")
 	}
 }
+
+func TestHostMultipleCompiledProfilesShareOneLifecycle(t *testing.T) {
+	registry, err := Compile(testDefinition("first"), testDefinition("second"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var closes atomic.Int32
+	mount := Mount{Handler: &mountedHandler{}, Readiness: func(context.Context) error { return nil }, Shutdown: func() error { closes.Add(1); return nil }}
+	for _, selection := range [][]string{nil, {"profile-first", "profile-first"}, {"profile-first", "not-compiled"}} {
+		if _, err := OpenProfiles(registry, selection, mount); err == nil {
+			t.Fatalf("accepted invalid selection %v", selection)
+		}
+	}
+	host, err := OpenProfiles(registry, []string{"profile-first", "profile-second"}, mount)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := host.Profiles()
+	if len(profiles) != 2 {
+		t.Fatal("compiled selection missing")
+	}
+	profiles[0] = Profile{}
+	if host.Profiles()[0].ID() != "profile-first" {
+		t.Fatal("profile selection is mutable")
+	}
+	if err := host.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := host.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if closes.Load() != 1 {
+		t.Fatal("ledger closed more than once")
+	}
+}

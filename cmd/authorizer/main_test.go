@@ -29,3 +29,20 @@ func TestClearGatewaySecretEnv(t *testing.T) {
 		t.Fatal("gateway secret remained in the process environment")
 	}
 }
+
+func TestParseLightEnabled(t *testing.T) {
+	for _, value := range []string{"", "false"} {
+		enabled, err := parseLightEnabled(value)
+		if err != nil || enabled {
+			t.Fatalf("default enablement for %q", value)
+		}
+	}
+	if enabled, err := parseLightEnabled("true"); err != nil || !enabled {
+		t.Fatal("explicit enablement rejected")
+	}
+	for _, value := range []string{"1", "TRUE", " false ", "yes"} {
+		if _, err := parseLightEnabled(value); err == nil {
+			t.Fatalf("invalid rollout value %q", value)
+		}
+	}
+}

@@ -24,6 +24,10 @@ func attachEnrollmentRoutes(mux *http.ServeMux, svc *Service, origin string) {
 			writeJSON(w, status, err)
 			return
 		}
+		if status.LightDescriptor != nil {
+			writeJSON(w, status, nil)
+			return
+		}
 		snap := svc.snapshot(vaultID)
 		cred, loadErr := svc.loadVerifiedCredentialFor(vaultID)
 		if loadErr != nil || cred == nil || snap.Board == nil {

@@ -26,6 +26,7 @@ import (
 	"github.com/brg444/arkade-runtime/internal/policy"
 	"github.com/brg444/arkade-runtime/internal/ports"
 	"github.com/brg444/arkade-runtime/internal/profile/arkadevaultv1"
+	"github.com/brg444/arkade-runtime/internal/profile/vaultedlightv1"
 	"github.com/brg444/arkade-runtime/internal/program"
 	arkaderuntime "github.com/brg444/arkade-runtime/internal/runtime"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -42,6 +43,7 @@ type Config struct {
 	VaultCosignerKeyFile string
 	EnrollmentTokenFile  string
 	EnrollmentWindow     time.Duration
+	LightEnabled         bool // explicit opt-in until Light lifecycle qualification passes
 	OpenEnrollment       bool // false preserves invite-only admission
 	StorageIsolation     string
 	EdgeRateLimit        string
@@ -250,6 +252,7 @@ func openWithArkadeDialers(ctx context.Context, cfg Config, dialArkade arkadeSig
 		Stores:                stores,
 		Deployment:            cfg.Deployment,
 		OpenEnrollment:        cfg.OpenEnrollment,
+		LightEnabled:          cfg.LightEnabled,
 		IntegrityKey:          credentialIntegrityKey,
 		Keys:                  keys,
 		VaultCosignerPub:      vaultCosignerKey.PubKey(),
@@ -276,7 +279,7 @@ func openWithArkadeDialers(ctx context.Context, cfg Config, dialArkade arkadeSig
 	if err != nil {
 		return nil, err
 	}
-	host, err := arkaderuntime.Open(registry, arkadevaultv1.ProfileID, arkaderuntime.Mount{
+	host, err := arkaderuntime.OpenProfiles(registry, []string{arkadevaultv1.ProfileID, vaultedlightv1.ProfileID}, arkaderuntime.Mount{
 		Handler: httpapi.Authorizer(svc),
 		Readiness: func(ctx context.Context) error {
 			ready := svc.Ready(ctx)
@@ -328,7 +331,7 @@ func signerUnavailable(signer application.Signer) bool {
 // linked here at build time; there is no configuration or discovery path that
 // can add another profile at runtime.
 func compiledRegistry() (*arkaderuntime.Registry, error) {
-	return arkaderuntime.Compile(arkadevaultv1.Definition())
+	return arkaderuntime.Compile(arkadevaultv1.Definition(), vaultedlightv1.Definition())
 }
 
 // provisionEnrollmentInvite turns one operator-supplied secret file into one

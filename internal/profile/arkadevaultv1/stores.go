@@ -70,6 +70,13 @@ type VaultBoardStore interface {
 	AppendVaultBoardSubmission(context.Context, policy.VaultBoardSubmission) (*policy.VaultBoardSubmission, bool, error)
 }
 
+// LightRenewalStore shares the ledger's atomic allowance and sequence boundary.
+type LightRenewalStore interface {
+	ReserveLightRenewal(context.Context, policy.LightRenewalOperation, int64) (*policy.LightRenewalSnapshot, error)
+	GetLightRenewal(context.Context, string) (*policy.LightRenewalSnapshot, error)
+	AppendLightRenewalEvent(context.Context, policy.LightRenewalEvent, []byte, uint32) (policy.LightRenewalEvent, bool, error)
+}
+
 // Stores is the complete persistence capability set compiled into the
 // arkade-vault-v1 profile.
 type Stores struct {
@@ -79,6 +86,7 @@ type Stores struct {
 	RecoveryOperations RecoveryOperationStore
 	Maps               MapStore
 	VaultBoard         VaultBoardStore
+	LightRenewal       LightRenewalStore
 }
 
 func (s Stores) Validate() error {
@@ -93,6 +101,8 @@ func (s Stores) Validate() error {
 		return fmt.Errorf("arkade-vault-v1 recovery operation store required")
 	case s.Maps == nil:
 		return fmt.Errorf("arkade-vault-v1 map store required")
+	case s.LightRenewal == nil:
+		return fmt.Errorf("Light renewal store required")
 	case s.VaultBoard == nil:
 		return fmt.Errorf("arkade-vault-v1 Vault Board store required")
 	default:
@@ -114,5 +124,6 @@ func StoresFromLedger(ledger *policy.Ledger) (Stores, error) {
 		RecoveryOperations: ledger,
 		Maps:               ledger,
 		VaultBoard:         ledger,
+		LightRenewal:       ledger,
 	}, nil
 }

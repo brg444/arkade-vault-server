@@ -75,6 +75,9 @@ func hasTable(db *sql.DB, table string) bool {
 }
 
 func knownSchemaTable(table string) bool {
+	if table == "light_renewal_operation" || table == "light_renewal_event" {
+		return true
+	}
 	for _, known := range coreTables {
 		if table == known {
 			return true

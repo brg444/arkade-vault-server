@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	arkadevaultv1 "github.com/brg444/arkade-runtime/internal/profile/arkadevaultv1"
+	"github.com/brg444/arkade-runtime/internal/profile/vaultedlightv1"
 )
 
 func TestRouteTablesMatchProfileGoldenAndREADME(t *testing.T) {
@@ -22,7 +23,7 @@ func TestRouteTablesMatchProfileGoldenAndREADME(t *testing.T) {
 		"/health": {"GET"},
 		"/ready":  {"GET"},
 	}
-	for _, route := range arkadevaultv1.Definition().Routes {
+	for _, route := range append(arkadevaultv1.Definition().Routes, vaultedlightv1.Definition().Routes...) {
 		profile[route.Path] = append(profile[route.Path], route.Method)
 	}
 	sortRouteMethods(profile)

@@ -21,6 +21,7 @@ import (
 	arkadevaultv1 "github.com/brg444/arkade-runtime/internal/profile/arkadevaultv1"
 	"github.com/brg444/arkade-runtime/internal/program"
 	"github.com/brg444/arkade-runtime/internal/vault"
+	"github.com/brg444/arkade-runtime/internal/vault/light"
 	"github.com/brg444/arkade-runtime/internal/vault/savings"
 	"github.com/brg444/arkade-runtime/internal/webauthn"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -33,6 +34,7 @@ import (
 type Service struct {
 	Stores         arkadevaultv1.Stores
 	Deployment     deployment.Config
+	LightEnabled   bool // admits new Light wallets only; existing wallets remain usable
 	OpenEnrollment bool // admission only; existing sessions retain their expiry
 	// CredentialIntegrityKey authenticates the immutable descriptor stored in
 	// the authoritative ledger. Production derives it from the VaultCosigner
@@ -67,6 +69,7 @@ type Service struct {
 	SessionNow                 func() time.Time
 	afterLoadPending           func()
 	vaultBoardRuntime          *vaultBoardRuntime
+	lightRenewalOperatorDial   func(context.Context) (lightRenewalOperator, error)
 	resolverReadyMu            sync.Mutex
 	resolverReadyAt            time.Time
 	resolverReadyErr           error
@@ -77,6 +80,7 @@ type Deps struct {
 	Stores                arkadevaultv1.Stores
 	Deployment            deployment.Config
 	OpenEnrollment        bool
+	LightEnabled          bool
 	IntegrityKey          []byte
 	Keys                  KeyCapabilities
 	VaultCosignerPub      *btcec.PublicKey
@@ -93,6 +97,7 @@ func New(d Deps) *Service {
 		Stores:                 d.Stores,
 		Deployment:             d.Deployment,
 		OpenEnrollment:         d.OpenEnrollment,
+		LightEnabled:           d.LightEnabled,
 		CredentialIntegrityKey: d.IntegrityKey,
 		VaultCosignerPub:       d.VaultCosignerPub,
 		ArkadeCosignerPub:      d.ArkadeCosignerPub,
@@ -140,6 +145,7 @@ var ErrVerificationBusy = errors.New("crypto verification capacity exhausted")
 
 // enrolledSnapshot is one immutable published enrollment for a single vault.
 type enrolledSnapshot struct {
+	Light               *light.Descriptor
 	VaultID             string
 	CredentialID        []byte
 	PhoneBIP340         *btcec.PublicKey
@@ -444,6 +450,9 @@ func (s *Service) LoadVaults() error {
 }
 
 func (s *Service) publishStoredEnrollment(cred *policy.Credential) error {
+	if cred.TemplateVersion == light.Profile {
+		return s.publishStoredLightEnrollment(cred)
+	}
 	phone, _, _, _, _, sv, err := s.rebuildFromCredential(cred)
 	if err != nil {
 		return err
@@ -605,6 +614,11 @@ func (s *Service) publishEnrollmentAt(vaultID string, credID []byte, phone *btce
 		snap.VaultCosignerBase = sv.VaultCosignerBase
 		snap.ArkadeCosignerBase = sv.ArkadeCosignerBase
 	}
+	s.publishSnapshot(snap)
+}
+
+func (s *Service) publishSnapshot(snap *enrolledSnapshot) {
+	vaultID, credID := snap.VaultID, snap.CredentialID
 	prev := s.published.Load()
 	next := &publishedIndex{
 		byVault: make(map[string]*enrolledSnapshot, 4),
@@ -678,7 +692,7 @@ func (s *Service) resolveSpendVaultRecord(vaultID string) (string, enrolledSnaps
 		return "", enrolledSnapshot{}, nil, err
 	}
 	snap := s.snapshot(id)
-	if snap.Savings == nil {
+	if snap.Savings == nil && snap.Light == nil {
 		return "", enrolledSnapshot{}, nil, fmt.Errorf("not enrolled")
 	}
 	if s.Stores.Identity == nil {
@@ -696,7 +710,7 @@ func (s *Service) resolveSpendVaultRecord(vaultID string) (string, enrolledSnaps
 	if rec == nil {
 		return "", enrolledSnapshot{}, nil, fmt.Errorf("not enrolled")
 	}
-	if err := program.ValidateSpendingPolicyFor(s.runtimeConfig().Network, spendingPolicyFromRecord(rec)); err != nil {
+	if err := validateRecordSpendingPolicy(s.runtimeConfig().Network, rec); err != nil {
 		return "", enrolledSnapshot{}, nil, fmt.Errorf("stored economic policy: %w", err)
 	}
 	if err := program.ValidateProtectionTierRecovery(rec.ProtectionTier, len(rec.RecoveryKey) > 0); err != nil {

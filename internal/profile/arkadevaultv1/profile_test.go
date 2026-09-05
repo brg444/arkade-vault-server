@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/brg444/arkade-runtime/internal/program"
@@ -60,7 +61,7 @@ func TestArkadeVaultV1RoutesMatchCompatibilityGolden(t *testing.T) {
 		// Process liveness and lifecycle readiness are common runtime routes,
 		// not profile-owned routes. The mounted handler still serves their
 		// exact compatibility-frozen behavior.
-		if path == "/health" || path == "/ready" {
+		if path == "/health" || path == "/ready" || strings.HasPrefix(path, "/v1/light/") {
 			continue
 		}
 		for _, method := range methods {

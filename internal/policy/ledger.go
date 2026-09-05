@@ -248,7 +248,17 @@ func (l *Ledger) spentInWindow(ctx context.Context, q queryContext, vaultID stri
 		}
 		total += need
 	}
-	return total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	renewal, err := l.lightRenewalAllowance(ctx, q, vaultID, key)
+	if err != nil {
+		return 0, err
+	}
+	return addOutflow(total, renewal)
 }
 
 // AttachMonotonic installs the external policy sequence and immediately
@@ -275,6 +285,13 @@ func economicOutflowCount(q queryContext) (uint64, error) {
 	}
 	if boardTables == 3 {
 		query = `SELECT (SELECT COUNT(*) FROM vtxo_operation) + (SELECT COUNT(*) FROM vault_board_authorization) + (SELECT COUNT(*) FROM vault_board_dispatch) + (SELECT COUNT(*) FROM vault_board_submission)`
+	}
+	var renewalTables int
+	if err := q.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('light_renewal_operation','light_renewal_event')`).Scan(&renewalTables); err != nil {
+		return 0, err
+	}
+	if renewalTables == 2 {
+		query = `SELECT (` + query + `) + (SELECT COUNT(*) FROM light_renewal_operation) + (SELECT COUNT(*) FROM light_renewal_event)`
 	}
 	if err := q.QueryRowContext(context.Background(), query).Scan(&n); err != nil {
 		return 0, err
